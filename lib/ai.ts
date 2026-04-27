@@ -292,7 +292,7 @@ export async function generateStudyPack(input: StudyGenerationInput): Promise<St
     return {
       ...fallback,
       provider: input.provider === "instant-demo" ? "instant-demo" : "demo-fallback",
-      fallbackReason: "No NVIDIA_NIM_API_KEY configured. StudySprint switched to demo mode.",
+      fallbackReason: "No NVIDIA_NIM_API_KEY configured. StudyPilot switched to demo mode.",
     };
   }
 
@@ -304,6 +304,8 @@ Subject: ${input.subject}
 Topic: ${input.topic}
 Exam date: ${input.examDate ?? "not provided"}
 Available hours per week: ${input.availableHoursPerWeek ?? "not provided"}
+Priority weak chapters/topics: ${(input.weakTopics ?? []).join(", ") || "not provided"}
+Preferred learning style: ${input.learningStyle ?? "mixed"}
 Seed concept hints: ${fallback.keyConcepts.join(", ")}
 
 Source notes:\n${input.notes.slice(0, 9000)}`,
@@ -361,7 +363,7 @@ export async function generateAdaptivePractice(
     return {
       questions: fallbackQuestions,
       provider: "demo-fallback",
-      fallbackReason: "No NVIDIA_NIM_API_KEY configured. Generated fallback weak-topic questions.",
+      fallbackReason: "No NVIDIA_NIM_API_KEY configured. Generated fallback weak-topic questions for StudyPilot.",
     };
   }
 

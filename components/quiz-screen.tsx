@@ -29,7 +29,7 @@ export function QuizScreen() {
       <AppShell
         eyebrow="Quiz"
         title="No study pack loaded"
-        description="Generate a pack first so StudySprint can create a quiz from your notes."
+        description="Generate a pack first so StudyPilot can create a quiz from your notes."
         actions={
           <Link href="/workspace" className="rounded-2xl bg-sky-400 px-4 py-3 text-sm font-semibold text-slate-950">
             Open workspace

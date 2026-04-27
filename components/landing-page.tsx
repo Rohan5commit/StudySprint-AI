@@ -2,39 +2,48 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, BarChart3, Brain, CalendarDays, CheckCircle2, Sparkles, Target, Trophy } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Brain,
+  CalendarDays,
+  CheckCircle2,
+  Sparkles,
+  Target,
+  Trophy,
+} from "lucide-react";
 import { demoPresets } from "@/lib/demo-presets";
 import { loadInstantDemoPack } from "@/lib/store";
 
 const featureCards = [
   {
-    title: "Grounded summary",
-    body: "Turns messy notes or syllabus text into a short summary, key bullets, and revision checklist.",
-    icon: Sparkles,
+    title: "Personalized study plan",
+    body: "Turns exam date, weekly study hours, and topic urgency into a realistic revision timetable.",
+    icon: CalendarDays,
   },
   {
-    title: "Adaptive practice",
-    body: "Weak-topic drills respond to hard ratings and wrong answers so revision time goes to the biggest gaps.",
+    title: "Weak-area prioritization",
+    body: "Pushes weak chapters and low-confidence concepts to the top so students revise what matters first.",
+    icon: Target,
+  },
+  {
+    title: "Active recall outputs",
+    body: "Generates summaries, chapter checklists, quizzes, and flashcards instead of generic AI paragraphs.",
     icon: Brain,
   },
   {
-    title: "Progress dashboard",
-    body: "Checklist progress, flashcard mastery, quiz accuracy, and study-plan coverage stay visible in one place.",
+    title: "Progress tracker",
+    body: "Checklist completion, quiz accuracy, and flashcard mastery stay visible in one polished dashboard.",
     icon: BarChart3,
-  },
-  {
-    title: "Exam-ready plan",
-    body: "Builds a revision sprint around the exam date or available study hours, not vague productivity advice.",
-    icon: CalendarDays,
   },
 ];
 
 const outputHighlights = [
-  "Summary + concept checklist",
-  "Quiz set with instant scoring",
-  "Flashcards with mastery tracking",
-  "Weak-topic practice mode",
-  "Revision plan tied to exam timing",
+  "Personalized revision timetable",
+  "Chapter-by-chapter checklist",
+  "Quick summaries + misconceptions",
+  "Quiz mode + flashcards",
+  "Last-minute revision mode",
 ];
 
 export function LandingPage() {
@@ -50,15 +59,15 @@ export function LandingPage() {
       <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="surface-card overflow-hidden p-8 sm:p-10">
           <div className="inline-flex rounded-full border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-sky-200">
-            Synapse Innovation Hack submission build
+            Genesis: The AI Buildathon 2026
           </div>
 
           <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            StudySprint AI
+            StudyPilot AI
           </h1>
 
           <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-300 sm:text-xl">
-            A student study copilot that turns raw notes into a complete revision workflow: summary, quiz, flashcards, weak-topic drills, and a realistic exam sprint.
+            A student web app that turns subjects, exam dates, weak chapters, free hours, and learning style into a personalized study system.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -66,21 +75,21 @@ export function LandingPage() {
               onClick={launchInstantDemo}
               className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-300"
             >
-              Launch instant demo
+              Launch judge demo
               <ArrowRight className="h-4 w-4" />
             </button>
             <Link
               href="/workspace"
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
-              Build from notes
+              Start onboarding
             </Link>
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3 text-sm text-slate-300">
             <span className="pill-chip">Next.js + TypeScript + Tailwind</span>
-            <span className="pill-chip">NVIDIA NIM when key is available</span>
-            <span className="pill-chip">Seeded demo mode always works</span>
+            <span className="pill-chip">NVIDIA NIM assisted generation</span>
+            <span className="pill-chip">Demo mode always works</span>
           </div>
         </div>
 
@@ -105,7 +114,7 @@ export function LandingPage() {
               <div>
                 <h3 className="text-sm font-semibold text-white">Why it stands out</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  StudySprint AI solves a real student problem with a concrete workflow. It feels complete, works instantly in demo mode, and still upgrades to live AI generation when the NVIDIA NIM key is present.
+                  StudyPilot AI solves a real student problem with a simple product story: what should I study first, and how do I revise fast? It feels useful, polished, and fully demoable in one sprint.
                 </p>
               </div>
             </div>
@@ -131,10 +140,10 @@ export function LandingPage() {
       <section className="mt-6 surface-card p-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <span className="pill-chip">Demo presets</span>
-            <h2 className="mt-3 text-2xl font-semibold text-white">Instantly load realistic student subjects</h2>
+            <span className="pill-chip">Demo sample data</span>
+            <h2 className="mt-3 text-2xl font-semibold text-white">Open a polished student workflow instantly</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Judges can launch one polished workflow immediately, or switch to the workspace and paste their own notes.
+              Judges can start from a realistic preset immediately, or switch to onboarding and enter their own subject details.
             </p>
           </div>
           <Link href="/workspace" className="text-sm font-semibold text-sky-200 hover:text-sky-100">
@@ -154,6 +163,7 @@ export function LandingPage() {
               <p className="mt-4 rounded-2xl border border-white/6 bg-slate-950/60 px-4 py-3 text-sm text-slate-200">
                 Focus: {preset.focus}
               </p>
+              <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-400">Exam date: {preset.examDate}</p>
             </article>
           ))}
         </div>

@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { buildInstantDemoState, createEmptyProgress, createProgressState } from "@/lib/study-engine";
 import type { AppState, Difficulty, ProgressState, QuizQuestion, StudyPack } from "@/lib/types";
 
-const STORAGE_KEY = "studysprint-ai::state";
+const STORAGE_KEY = "studypilot-ai::state";
 const listeners = new Set<() => void>();
 
 function getDefaultState(): AppState {

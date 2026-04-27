@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CalendarDays, Target } from "lucide-react";
+import { BarChart3, CalendarDays, Target, Zap } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { deriveWeakTopics, getChecklistProgress, getQuizAccuracy } from "@/lib/study-engine";
 import { useStudyStore } from "@/lib/store";
@@ -13,9 +13,9 @@ export function PlanScreen() {
   if (!currentPack) {
     return (
       <AppShell
-        eyebrow="Revision plan"
-        title="No revision plan available yet"
-        description="Generate a study pack to see the sprint plan and progress roll-up."
+        eyebrow="Study plan"
+        title="No personalized plan available yet"
+        description="Generate a study pack to see the timetable, progress roll-up, and last-minute revision mode."
         actions={
           <Link href="/workspace" className="rounded-2xl bg-sky-400 px-4 py-3 text-sm font-semibold text-slate-950">
             Open workspace
@@ -23,7 +23,7 @@ export function PlanScreen() {
         }
       >
         <div className="surface-card p-8 text-sm leading-7 text-slate-300">
-          The plan view connects exam timing, available hours, and the weakest concepts into a simple revision schedule.
+          The plan view connects exam timing, free hours, weak chapters, and current progress into one simple revision schedule.
         </div>
       </AppShell>
     );
@@ -34,12 +34,13 @@ export function PlanScreen() {
   const quizAccuracy = getQuizAccuracy(progress);
   const nextTask = currentPack.checklist.find((item) => !progress.completedChecklist.includes(item));
   const examCountdown = daysUntil(currentPack.examDate);
+  const lastMinuteFocus = [...new Set([...(currentPack.weakTopicsInput ?? []), ...weakTopics, ...currentPack.keyConcepts])].slice(0, 3);
 
   return (
     <AppShell
-      eyebrow="Revision plan"
-      title="A realistic sprint plan, not a generic timetable"
-      description="StudySprint spreads the highest-value concepts across short sessions so judges can see one clear, credible workflow."
+      eyebrow="Study plan"
+      title="A personalized revision timetable that adapts to exam pressure"
+      description="StudyPilot spreads the highest-value concepts across short sessions, then adds a last-minute rescue mode for the final revision push."
       actions={
         <Link href="/dashboard" className="rounded-2xl bg-sky-400 px-4 py-3 text-sm font-semibold text-slate-950">
           Back to dashboard
@@ -76,7 +77,7 @@ export function PlanScreen() {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="surface-card p-6 sm:p-7">
-          <h2 className="text-xl font-semibold text-white">Planned revision sessions</h2>
+          <h2 className="text-xl font-semibold text-white">Personalized revision timetable</h2>
           <div className="mt-5 space-y-4">
             {currentPack.studyPlan.map((session) => (
               <article key={session.id} className="subtle-card p-5">
@@ -107,7 +108,29 @@ export function PlanScreen() {
 
         <section className="space-y-6">
           <div className="surface-card p-6 sm:p-7">
-            <h2 className="text-xl font-semibold text-white">Weak-topic watchlist</h2>
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 text-amber-300" />
+              <h2 className="text-xl font-semibold text-white">Last-minute revision mode</h2>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              This is the 20-minute rescue path for the final stretch before the exam. It prioritizes the most urgent weak concepts first.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {lastMinuteFocus.map((concept) => (
+                <span key={concept} className="rounded-full border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-100">
+                  {concept}
+                </span>
+              ))}
+            </div>
+            <ol className="mt-5 space-y-3 text-sm leading-6 text-slate-200">
+              <li className="subtle-card px-4 py-3">1. Read the short summary once and say the main story out loud.</li>
+              <li className="subtle-card px-4 py-3">2. Self-test the top weak concepts before reopening notes.</li>
+              <li className="subtle-card px-4 py-3">3. Flip through the flashcards and finish with one fast quiz round.</li>
+            </ol>
+          </div>
+
+          <div className="surface-card p-6 sm:p-7">
+            <h2 className="text-xl font-semibold text-white">Priority weak chapters</h2>
             {weakTopics.length ? (
               <div className="mt-4 flex flex-wrap gap-3">
                 {weakTopics.map((concept) => (
@@ -116,9 +139,17 @@ export function PlanScreen() {
                   </span>
                 ))}
               </div>
+            ) : currentPack.weakTopicsInput.length ? (
+              <div className="mt-4 flex flex-wrap gap-3">
+                {currentPack.weakTopicsInput.map((concept) => (
+                  <span key={concept} className="rounded-full border border-rose-300/30 bg-rose-400/10 px-4 py-2 text-sm font-medium text-rose-100">
+                    {concept}
+                  </span>
+                ))}
+              </div>
             ) : (
               <p className="mt-4 text-sm text-slate-300">
-                No weak topics yet. Mark concepts or take the quiz to adapt the plan.
+                No weak topics recorded yet. Rate concepts or take the quiz to adapt the plan.
               </p>
             )}
           </div>
@@ -134,6 +165,9 @@ export function PlanScreen() {
               </div>
               <div className="subtle-card px-4 py-3">
                 <span className="text-slate-400">Hours per week:</span> {currentPack.availableHoursPerWeek ?? "Flexible"}
+              </div>
+              <div className="subtle-card px-4 py-3">
+                <span className="text-slate-400">Learning style:</span> {currentPack.learningStyle ?? "Mixed"}
               </div>
             </div>
           </div>

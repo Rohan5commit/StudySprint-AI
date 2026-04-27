@@ -1,34 +1,25 @@
-# Demo Script
+# 60-Second Demo Script
 
-## 60-90 second judge flow
+1. **Open landing page**
+   - “This is StudyPilot AI, a student app that creates a personalized study system from exam dates, weak chapters, and available study time.”
 
-1. **[Open landing page]**
-   - “This is StudySprint AI, a student study copilot that turns messy notes into a full revision workflow.”
+2. **Click Launch judge demo**
+   - “So judges do not wait for setup, we can open a full working flow instantly.”
 
-2. **[Click Launch instant demo]**
-   - “Judges can see the full product immediately, even if live AI is unavailable.”
+3. **On the dashboard**
+   - “The app shows a quick summary, chapter checklist, weak areas, and overall readiness in one place.”
 
-3. **[On Dashboard]**
-   - “The dashboard shows summary bullets, a revision checklist, confidence ratings, and the weakest topics.”
+4. **Open Quiz**
+   - “The quiz is generated from the study input, and wrong answers feed into weak-topic practice.”
 
-4. **[Open Quiz]**
-   - “The quiz is generated directly from the notes, and after a few answers the app can create a weak-area drill.”
+5. **Open Flashcards**
+   - “Students can revise fast with flip cards and mark mastered concepts.”
 
-5. **[Click Generate weak-area drill]**
-   - “This adapts follow-up questions to the concepts the student rated as hard or got wrong.”
+6. **Open Study Plan**
+   - “This is the personalized revision timetable based on the exam date and weekly study hours.”
 
-6. **[Open Flashcards]**
-   - “Students can flip cards and mark which concepts they’ve mastered.”
+7. **Show Last-minute revision mode**
+   - “Right before the exam, StudyPilot compresses the plan into a short rescue flow focused on the weakest chapters.”
 
-7. **[Open Revision Plan]**
-   - “The plan turns exam timing and available study hours into a realistic sprint instead of generic advice.”
-
-8. **[Close with value]**
-   - “StudySprint AI solves a real student pain point: moving from raw notes to focused revision, fast.”
-
-## Optional live-AI flow
-
-1. Open **Workspace**
-2. Paste a custom topic or notes
-3. Generate a fresh study pack
-4. Mention that NVIDIA NIM powers the structured output when the key is available
+8. **Close**
+   - “So instead of generic AI chat, StudyPilot gives students an actual revision system they can use immediately.”

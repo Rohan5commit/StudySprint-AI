@@ -7,6 +7,13 @@ import { AppShell } from "@/components/app-shell";
 import { demoPresets } from "@/lib/demo-presets";
 import { loadInstantDemoPack, saveGeneratedPack } from "@/lib/store";
 
+const learningStyleOptions = [
+  { value: "mixed", label: "Mixed" },
+  { value: "visual", label: "Visual" },
+  { value: "practice-first", label: "Practice first" },
+  { value: "step-by-step", label: "Step by step" },
+] as const;
+
 export function WorkspaceScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -16,6 +23,8 @@ export function WorkspaceScreen() {
   const [notes, setNotes] = useState(demoPresets[0].notes);
   const [examDate, setExamDate] = useState(demoPresets[0].examDate);
   const [availableHours, setAvailableHours] = useState(String(demoPresets[0].availableHoursPerWeek));
+  const [weakTopicsText, setWeakTopicsText] = useState(demoPresets[0].focus);
+  const [learningStyle, setLearningStyle] = useState<(typeof learningStyleOptions)[number]["value"]>("mixed");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,6 +46,8 @@ export function WorkspaceScreen() {
     setNotes(preset.notes);
     setExamDate(preset.examDate);
     setAvailableHours(String(preset.availableHoursPerWeek));
+    setWeakTopicsText(preset.focus);
+    setLearningStyle("mixed");
   }, [searchParams]);
 
   const applyPreset = (presetId: string) => {
@@ -49,6 +60,8 @@ export function WorkspaceScreen() {
     setNotes(preset.notes);
     setExamDate(preset.examDate);
     setAvailableHours(String(preset.availableHoursPerWeek));
+    setWeakTopicsText(preset.focus);
+    setLearningStyle("mixed");
     setError(null);
   };
 
@@ -66,8 +79,7 @@ export function WorkspaceScreen() {
         throw new Error("This demo accepts note uploads up to 2MB.");
       }
 
-      const isTextFile =
-        file.type.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(file.name);
+      const isTextFile = file.type.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(file.name);
 
       if (!isTextFile) {
         throw new Error(
@@ -76,7 +88,9 @@ export function WorkspaceScreen() {
       }
 
       const content = await file.text();
-      setNotes((current) => `${current.trim()}\n\n${content.trim()}`.trim());
+      setNotes((current) => `${current.trim()}
+
+${content.trim()}`.trim());
       setError(null);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Unable to read that file.");
@@ -91,6 +105,13 @@ export function WorkspaceScreen() {
     setError(null);
 
     try {
+      const weakTopics = weakTopicsText
+        .split(/[
+,]/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 8);
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
@@ -102,6 +123,8 @@ export function WorkspaceScreen() {
           notes,
           examDate: examDate || null,
           availableHoursPerWeek: availableHours ? Number(availableHours) : null,
+          weakTopics,
+          learningStyle,
           selectedPresetId,
         }),
       });
@@ -117,7 +140,7 @@ export function WorkspaceScreen() {
       setError(
         generationError instanceof Error
           ? generationError.message
-          : "StudySprint could not generate a pack right now.",
+          : "StudyPilot could not generate a study system right now.",
       );
     } finally {
       setLoading(false);
@@ -126,9 +149,9 @@ export function WorkspaceScreen() {
 
   return (
     <AppShell
-      eyebrow="Study workspace"
-      title="Build a revision pack from any topic, syllabus, or note dump"
-      description="Paste notes, upload text files, or start from a preset. StudySprint AI will return a summary, checklist, quiz, flashcards, study plan, and weak-topic drills."
+      eyebrow="Onboarding workspace"
+      title="Build a personalized study system"
+      description="Enter subject details, exam timing, weak chapters, free study hours, and learning style. StudyPilot AI returns a revision timetable, checklist, summaries, quizzes, flashcards, and a last-minute mode."
       actions={
         <button
           onClick={() => launchInstantDemo(selectedPreset.id)}
@@ -145,9 +168,9 @@ export function WorkspaceScreen() {
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white">Study pack generator</h2>
+              <h2 className="text-xl font-semibold text-white">Study system generator</h2>
               <p className="mt-1 text-sm text-slate-300">
-                Keep the input grounded. The stronger the notes, the sharper the quiz and flashcards.
+                Keep the input grounded. The clearer the syllabus and weak chapters, the stronger the generated plan.
               </p>
             </div>
           </div>
@@ -165,7 +188,7 @@ export function WorkspaceScreen() {
             </label>
 
             <label className="space-y-2 text-sm text-slate-200">
-              <span>Topic or unit</span>
+              <span>Chapter / unit / exam topic</span>
               <input
                 value={topic}
                 onChange={(event) => setTopic(event.target.value)}
@@ -200,14 +223,45 @@ export function WorkspaceScreen() {
             </label>
           </div>
 
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <label className="space-y-2 text-sm text-slate-200">
+              <span>Weak chapters / priority topics</span>
+              <textarea
+                value={weakTopicsText}
+                onChange={(event) => setWeakTopicsText(event.target.value)}
+                rows={4}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-sky-300"
+                placeholder="ATP, electron transport chain, aerobic vs anaerobic respiration"
+              />
+            </label>
+
+            <label className="space-y-2 text-sm text-slate-200">
+              <span>Preferred learning style</span>
+              <select
+                value={learningStyle}
+                onChange={(event) => setLearningStyle(event.target.value as (typeof learningStyleOptions)[number]["value"])}
+                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-sky-300"
+              >
+                {learningStyleOptions.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-slate-950 text-white">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs leading-5 text-slate-400">
+                This changes how the generated plan and explanations are framed.
+              </p>
+            </label>
+          </div>
+
           <label className="mt-4 block space-y-2 text-sm text-slate-200">
-            <span>Notes / syllabus / messy study dump</span>
+            <span>Syllabus / notes / messy study dump</span>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={14}
               className="w-full rounded-3xl border border-white/10 bg-slate-950/70 px-4 py-4 text-sm leading-6 text-white outline-none transition focus:border-sky-300"
-              placeholder="Paste raw study notes here..."
+              placeholder="Paste raw syllabus text, chapter notes, common mistakes, and revision points here..."
               required
             />
           </label>
@@ -237,7 +291,7 @@ export function WorkspaceScreen() {
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            {loading ? "Generating study pack..." : "Generate study pack"}
+            {loading ? "Generating study system..." : "Generate study system"}
           </button>
         </form>
 
@@ -245,7 +299,7 @@ export function WorkspaceScreen() {
           <section className="surface-card p-6 sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="pill-chip">Selected preset</span>
+                <span className="pill-chip">Selected sample data</span>
                 <h2 className="mt-3 text-xl font-semibold text-white">{selectedPreset.topic}</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-300">{selectedPreset.highlight}</p>
               </div>
@@ -257,44 +311,49 @@ export function WorkspaceScreen() {
               </button>
             </div>
             <p className="mt-4 rounded-2xl border border-white/8 bg-slate-950/60 px-4 py-4 text-sm leading-6 text-slate-200">
-              <span className="font-semibold text-white">Focus:</span> {selectedPreset.focus}
+              <span className="font-semibold text-white">Priority focus:</span> {selectedPreset.focus}
             </p>
-          </section>
-
-          <section className="surface-card p-6 sm:p-7">
-            <span className="pill-chip">Demo presets</span>
-            <div className="mt-4 space-y-3">
-              {demoPresets.map((preset) => (
-                <button
-                  type="button"
-                  key={preset.id}
-                  onClick={() => applyPreset(preset.id)}
-                  className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
-                    preset.id === selectedPresetId
-                      ? "border-sky-300 bg-sky-400/10"
-                      : "border-white/8 bg-white/5 hover:bg-white/8"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{preset.topic}</p>
-                      <p className="mt-1 text-sm text-slate-300">{preset.subject}</p>
-                    </div>
-                    <span className="text-xs uppercase tracking-[0.22em] text-slate-400">
-                      {preset.availableHoursPerWeek}h/week
-                    </span>
-                  </div>
-                </button>
-              ))}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="subtle-card px-4 py-3 text-sm text-slate-200">
+                <span className="text-slate-400">Exam date:</span> {selectedPreset.examDate}
+              </div>
+              <div className="subtle-card px-4 py-3 text-sm text-slate-200">
+                <span className="text-slate-400">Study hours/week:</span> {selectedPreset.availableHoursPerWeek}
+              </div>
             </div>
           </section>
 
           <section className="surface-card p-6 sm:p-7">
-            <span className="pill-chip">Reliability guardrails</span>
-            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-              <p>• If the NVIDIA NIM key is missing, StudySprint still works with a seeded demo and local fallback generator.</p>
-              <p>• Text uploads are supported out of the box. PDF/image notes gracefully fall back to paste-in text for demo speed.</p>
-              <p>• Every output is grounded to the user’s notes first, not generic advice.</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <span className="pill-chip">Preset switcher</span>
+                <h2 className="mt-3 text-xl font-semibold text-white">Fast judge walkthrough presets</h2>
+              </div>
+            </div>
+            <div className="mt-5 space-y-3">
+              {demoPresets.map((preset) => {
+                const active = preset.id === selectedPresetId;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset.id)}
+                    className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
+                      active
+                        ? "border-sky-300/40 bg-sky-400/10"
+                        : "border-white/8 bg-white/5 hover:bg-white/8"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{preset.subject}</p>
+                        <p className="mt-1 text-sm text-slate-300">{preset.topic}</p>
+                      </div>
+                      <span className="pill-chip">{preset.availableHoursPerWeek}h/week</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </section>
         </div>

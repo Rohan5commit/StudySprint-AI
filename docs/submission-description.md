@@ -1,42 +1,46 @@
 # Submission Description
 
 ## Project name
-StudySprint AI
+StudyPilot AI
 
 ## One-line description
-StudySprint AI turns raw student notes into a complete revision workflow with summaries, flashcards, quizzes, weak-topic drills, and a realistic study plan.
+StudyPilot AI turns a student’s subject details, weak chapters, and exam timeline into a personalized revision system with actionable study outputs.
 
 ## Problem statement
-Students rarely struggle because they lack content. They struggle because their notes are messy, their revision is unstructured, and they don’t know what to study next. Most students waste time rewriting notes instead of actively learning.
+Students do not just need more notes. They need clarity on what to study first, what they are weak at, and how to use their limited time before exams.
+
+## Why this matters
+Most students waste revision time rewriting notes, jumping between chapters, or studying easy topics first. A better study system can improve confidence, structure, and exam readiness.
 
 ## Solution
-StudySprint AI converts unstructured notes, syllabus text, or topic lists into an actionable study pack. In one flow, it produces:
-- a concise summary,
-- a revision checklist,
+StudyPilot AI converts subject inputs, syllabus text, weak chapters, exam dates, and available weekly hours into:
+- a personalized revision timetable,
+- a chapter-by-chapter checklist,
+- quick summaries,
+- quizzes,
 - flashcards,
-- a quiz,
-- adaptive weak-topic practice,
-- and a revision sprint plan tied to the exam timeline.
+- progress tracking,
+- and a last-minute revision mode.
 
 ## Who it is for
-- secondary school students
+- school students
 - junior college / pre-university students
-- university students revising theory-heavy modules
-- tutors who want a fast way to turn lesson notes into revision material
+- first-year university students
+- tutors helping students revise faster
 
-## Why it is strong
-- It solves a real, common student problem.
-- Judges understand the value in seconds.
-- The AI is practical and grounded to the input notes.
-- The fallback mode ensures the product always demos cleanly.
+## Why it is strong for this buildathon
+- Clear school-student pain point
+- Easy for judges to understand in seconds
+- Looks like a real product, not a gimmick
+- Fast to prototype with AI-first frontend tooling
+- Reliable demo even without live model output
 
 ## Technical details
 - **Frontend:** Next.js App Router, TypeScript, Tailwind CSS
-- **AI routes:** server-side API routes
-- **AI provider:** NVIDIA NIM chat-completions endpoint
-- **State/storage:** local browser storage for fast, zero-setup demos
-- **Fallback engine:** local rule-based summary / quiz / flashcard / plan generator
+- **AI provider:** NVIDIA NIM
+- **State/storage:** browser-local state for zero-setup demos
+- **Fallback engine:** deterministic study-pack generation so the demo is always safe
 
 ## Demo links
-- Live app: https://studysprint-ai-rohan-santhoshs-projects.vercel.app
-- Source code: https://github.com/Rohan5commit/StudySprint-AI
+- Live app: https://studypilot-ai-rohan-santhoshs-projects.vercel.app
+- Source code: https://github.com/Rohan5commit/StudyPilot-AI

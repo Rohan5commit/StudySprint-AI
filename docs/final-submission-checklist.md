@@ -1,12 +1,9 @@
-# Final Manual Submission Checklist
+# Final Submission Checklist
 
-- [ ] Open the live app at https://studysprint-ai-rohan-santhoshs-projects.vercel.app and confirm the landing page loads.
-- [ ] Click **Launch instant demo** and confirm dashboard, quiz, flashcards, and revision plan all work.
-- [ ] Open the workspace and generate a fresh study pack from a preset.
-- [ ] If using live AI during judging, confirm the NVIDIA NIM key is still configured in Vercel.
-- [ ] Paste the source repo URL: https://github.com/Rohan5commit/StudySprint-AI
-- [ ] Paste the live demo URL: https://studysprint-ai-rohan-santhoshs-projects.vercel.app
-- [ ] Use `docs/submission-description.md` for the written description.
-- [ ] Use `docs/elevator-pitch.md` for the short pitch field.
-- [ ] Use `docs/demo-script.md` for the live walkthrough.
-- [ ] Mention the fallback demo mode as a reliability advantage.
+- [ ] Open the live app at https://studypilot-ai-rohan-santhoshs-projects.vercel.app and confirm the landing page loads.
+- [ ] Run the instant demo preset and verify dashboard, quiz, flashcards, and study plan all load.
+- [ ] Paste the repo URL: https://github.com/Rohan5commit/StudyPilot-AI
+- [ ] Paste the live demo URL: https://studypilot-ai-rohan-santhoshs-projects.vercel.app
+- [ ] Use the 1-line pitch from `docs/idea-submission-pack.md`.
+- [ ] Use the 60-second demo flow from `docs/demo-script.md`.
+- [ ] If time is tight onsite, follow `docs/minimum-viable-winning-version.md`.

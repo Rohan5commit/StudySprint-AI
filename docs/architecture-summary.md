@@ -1,7 +1,7 @@
 # Architecture Summary
 
 ## Product goal
-StudySprint AI helps students convert unstructured notes into a full revision workflow with minimal setup and strong demo reliability.
+StudyPilot AI helps students convert unstructured notes into a full revision workflow with minimal setup and strong demo reliability.
 
 ## System design
 

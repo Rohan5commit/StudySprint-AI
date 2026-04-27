@@ -1,5 +1,6 @@
 export type Difficulty = "easy" | "medium" | "hard";
 export type SourceMode = "nvidia-nim" | "demo-fallback" | "instant-demo";
+export type LearningStyle = "visual" | "practice-first" | "step-by-step" | "mixed";
 
 export interface SummaryBlock {
   short: string;
@@ -49,6 +50,8 @@ export interface StudyGenerationInput {
   notes: string;
   examDate?: string | null;
   availableHoursPerWeek?: number | null;
+  weakTopics?: string[] | null;
+  learningStyle?: LearningStyle | null;
   sourcePresetId?: string | null;
   provider?: SourceMode;
   fallbackReason?: string;
@@ -61,6 +64,8 @@ export interface StudyPack {
   inputText: string;
   examDate?: string | null;
   availableHoursPerWeek?: number | null;
+  weakTopicsInput: string[];
+  learningStyle?: LearningStyle | null;
   generatedAt: string;
   provider: SourceMode;
   fallbackReason?: string;

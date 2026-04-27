@@ -29,7 +29,7 @@ export function DashboardScreen() {
         }
       >
         <div className="surface-card p-8 text-sm leading-7 text-slate-300">
-          StudySprint AI stores the current revision pack in local browser state so judges can move between the dashboard, quiz, flashcards, and revision plan without needing a database.
+          StudyPilot AI stores the current study system in local browser state so judges can move between the dashboard, quiz, flashcards, and study plan without needing a database.
         </div>
       </AppShell>
     );
@@ -45,7 +45,7 @@ export function DashboardScreen() {
     <AppShell
       eyebrow="Progress dashboard"
       title={currentPack.topic}
-      description="Track readiness across summary review, checklist completion, flashcard mastery, and adaptive weak-topic practice."
+      description="Track readiness across summary review, checklist completion, flashcard mastery, and priority weak-topic practice."
       actions={
         <>
           <Link href="/quiz" className="rounded-2xl bg-sky-400 px-4 py-3 text-sm font-semibold text-slate-950">

@@ -389,7 +389,15 @@ export function buildAdaptivePracticeQuestions(
 
 export function buildFallbackStudyPack(input: StudyGenerationInput): StudyPack {
   const notes = normalizeWhitespace(input.notes);
-  const keyConcepts = extractConcepts(input.subject, input.topic, notes);
+  const prioritizedWeakTopics = unique(
+    (input.weakTopics ?? [])
+      .map((entry) => toTitleCase(entry.trim()))
+      .filter(Boolean),
+  ).slice(0, 4);
+  const keyConcepts = unique([
+    ...prioritizedWeakTopics,
+    ...extractConcepts(input.subject, input.topic, notes),
+  ]).slice(0, 6);
   const explanationLookup = buildExplanationLookup(keyConcepts, notes, input.topic);
   const summary = buildSummary(keyConcepts, explanationLookup, notes, input.topic);
   const checklist = buildChecklist(keyConcepts);
@@ -420,6 +428,8 @@ export function buildFallbackStudyPack(input: StudyGenerationInput): StudyPack {
     provider: input.provider ?? "demo-fallback",
     fallbackReason: input.fallbackReason,
     sourcePresetId: input.sourcePresetId ?? null,
+    weakTopicsInput: prioritizedWeakTopics,
+    learningStyle: input.learningStyle ?? null,
     keyConcepts,
     summary,
     checklist,

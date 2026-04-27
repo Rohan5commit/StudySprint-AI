@@ -8,23 +8,24 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "StudySprint AI",
+  title: "StudyPilot AI",
   description:
-    "Turn messy notes into summaries, quizzes, flashcards, revision plans, and weak-topic drills in minutes.",
+    "Build a personalized student study system with revision timetables, summaries, quizzes, flashcards, and last-minute revision mode.",
   keywords: [
-    "StudySprint AI",
-    "student productivity",
-    "revision planner",
+    "StudyPilot AI",
+    "student revision planner",
+    "personalized study plan",
     "quiz generator",
     "flashcards",
     "NVIDIA NIM",
+    "Genesis AI Buildathon",
   ],
   openGraph: {
-    title: "StudySprint AI",
+    title: "StudyPilot AI",
     description:
-      "A student study copilot that turns raw notes into a structured revision workflow.",
-    url: "https://studysprint-ai-rohan-santhoshs-projects.vercel.app",
-    siteName: "StudySprint AI",
+      "A student study copilot that turns syllabus text and weak chapters into a personalized revision system.",
+    url: "https://studypilot-ai-rohan-santhoshs-projects.vercel.app",
+    siteName: "StudyPilot AI",
     type: "website",
   },
 };
