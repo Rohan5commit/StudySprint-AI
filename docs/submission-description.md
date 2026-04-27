@@ -38,5 +38,5 @@ StudySprint AI converts unstructured notes, syllabus text, or topic lists into a
 - **Fallback engine:** local rule-based summary / quiz / flashcard / plan generator
 
 ## Demo links
-- Live app: https://studysprint-ai.vercel.app
+- Live app: https://studysprint-ai-rohan-santhoshs-projects.vercel.app
 - Source code: https://github.com/Rohan5commit/StudySprint-AI
