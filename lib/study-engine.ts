@@ -3,6 +3,7 @@ import type {
   AppState,
   DemoPreset,
   Difficulty,
+  LearningStyle,
   ProgressState,
   QuizQuestion,
   RevisionSession,
@@ -10,7 +11,17 @@ import type {
   StudyPack,
   WeakDrill,
 } from "@/lib/types";
-import { clamp, daysUntil, normalizeWhitespace, percentage, shuffle, slugify, toTitleCase, unique } from "@/lib/utils";
+import {
+  clamp,
+  createSeededRandom,
+  daysUntil,
+  normalizeWhitespace,
+  percentage,
+  shuffle,
+  slugify,
+  toTitleCase,
+  unique,
+} from "@/lib/utils";
 
 const STOP_WORDS = new Set([
   "the",
@@ -50,6 +61,19 @@ const STOP_WORDS = new Set([
   "because",
 ]);
 
+const GENERIC_FALLBACK_WORDS = new Set([
+  "cellular",
+  "respiration",
+  "process",
+  "system",
+  "revision",
+  "students",
+  "student",
+  "important",
+  "concept",
+  "energy",
+]);
+
 function splitSentences(text: string) {
   return text
     .replace(/\n+/g, " ")
@@ -79,9 +103,59 @@ function meaningfulPhrase(line: string) {
   return toTitleCase(candidate);
 }
 
-function extractConcepts(subject: string, topic: string, notes: string) {
+function getStyleLabel(learningStyle?: LearningStyle | null) {
+  if (learningStyle === "visual") return "visual";
+  if (learningStyle === "practice-first") return "practice-first";
+  if (learningStyle === "step-by-step") return "step-by-step";
+  return "mixed";
+}
+
+function splitConceptHints(value: string) {
+  return value
+    .split(/[,\n;]+/)
+    .map((entry) => cleanLine(entry))
+    .map((entry) => toTitleCase(entry))
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function collectSentencePhrases(notes: string) {
+  return splitSentences(notes)
+    .flatMap((sentence) => sentence.split(/[,:;]|\band\b|\bwhile\b/gi))
+    .map((entry) => meaningfulPhrase(entry))
+    .filter((entry): entry is string => Boolean(entry));
+}
+
+function buildConceptHints(input: StudyGenerationInput) {
+  const preset = findPresetById(input.sourcePresetId);
+  const hints = [...(input.weakTopics ?? [])];
+
+  if (
+    preset &&
+    preset.subject === input.subject &&
+    preset.topic === input.topic &&
+    normalizeWhitespace(preset.notes) === normalizeWhitespace(input.notes)
+  ) {
+    hints.push(...splitConceptHints(preset.focus));
+  }
+
+  return unique(hints.map((entry) => toTitleCase(cleanLine(entry))).filter(Boolean)).slice(0, 6);
+}
+
+function extractConcepts(
+  subject: string,
+  topic: string,
+  notes: string,
+  conceptHints: string[] = [],
+) {
   const lines = notes.split(/\n+/).map(cleanLine).filter(Boolean);
-  const concepts: string[] = [topic];
+  const topicTokens = new Set(
+    topic
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 3),
+  );
+  const concepts: string[] = [topic, ...conceptHints, ...collectSentencePhrases(notes)];
 
   for (const line of lines) {
     const heading = line.includes(":") ? line.split(":", 1)[0] : line;
@@ -95,7 +169,15 @@ function extractConcepts(subject: string, topic: string, notes: string) {
   const fallbackWords = notes
     .replace(/[^a-zA-Z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((word) => word.length > 5 && !STOP_WORDS.has(word.toLowerCase()));
+    .filter((word) => {
+      const lowered = word.toLowerCase();
+      return (
+        word.length > 5 &&
+        !STOP_WORDS.has(lowered) &&
+        !GENERIC_FALLBACK_WORDS.has(lowered) &&
+        !topicTokens.has(lowered)
+      );
+    });
 
   for (const word of fallbackWords) {
     concepts.push(toTitleCase(word));
@@ -138,15 +220,28 @@ function buildSummary(
   explanationLookup: Map<string, string>,
   notes: string,
   topic: string,
+  learningStyle?: LearningStyle | null,
 ) {
   const sentences = splitSentences(notes);
   const short = normalizeWhitespace(
     [sentences[0], sentences[1], sentences[2]].filter(Boolean).join(" "),
   ).slice(0, 420);
+  const styleLabel = getStyleLabel(learningStyle);
 
   const bullets = concepts.slice(0, 4).map((concept) => {
     const detail = explanationLookup.get(concept) ?? `${concept} matters in ${topic}.`;
-    return normalizeWhitespace(`${concept}: ${detail}`).slice(0, 180);
+    const prefix =
+      styleLabel === "visual"
+        ? "Visual anchor"
+        : styleLabel === "practice-first"
+          ? "Fast recall cue"
+          : styleLabel === "step-by-step"
+            ? "Sequence anchor"
+            : concept;
+
+    return normalizeWhitespace(
+      styleLabel === "mixed" ? `${concept}: ${detail}` : `${prefix} — ${concept}: ${detail}`,
+    ).slice(0, 180);
   });
 
   const misconceptions = [
@@ -162,29 +257,54 @@ function buildSummary(
   };
 }
 
-function buildChecklist(concepts: string[]) {
-  const verbs = ["Explain", "Compare", "Recall", "Apply", "Self-test on", "Teach"];
+function buildChecklist(concepts: string[], learningStyle?: LearningStyle | null) {
+  const styleLabel = getStyleLabel(learningStyle);
+  const verbs =
+    styleLabel === "visual"
+      ? ["Map", "Sketch", "Label", "Trace", "Visualize", "Teach"]
+      : styleLabel === "practice-first"
+        ? ["Self-test on", "Answer", "Drill", "Recall", "Apply", "Teach"]
+        : styleLabel === "step-by-step"
+          ? ["List the steps in", "Walk through", "Order", "Trace", "Explain", "Teach"]
+          : ["Explain", "Compare", "Recall", "Apply", "Self-test on", "Teach"];
 
   return concepts.map((concept, index) => `${verbs[index % verbs.length]} ${concept} without reading your notes.`);
 }
 
-function buildFlashcards(concepts: string[], explanationLookup: Map<string, string>) {
+function buildFlashcards(
+  concepts: string[],
+  explanationLookup: Map<string, string>,
+  learningStyle?: LearningStyle | null,
+) {
+  const styleLabel = getStyleLabel(learningStyle);
+
   return concepts.slice(0, 6).map((concept, index) => ({
     id: `flashcard-${slugify(concept)}-${index + 1}`,
     concept,
-    front: `What should you remember about ${concept}?`,
+    front:
+      styleLabel === "visual"
+        ? `What diagram or visual cue helps you remember ${concept}?`
+        : styleLabel === "practice-first"
+          ? `Quick recall: what is the key exam fact about ${concept}?`
+          : styleLabel === "step-by-step"
+            ? `What is the step-by-step story for ${concept}?`
+            : `What should you remember about ${concept}?`,
     back: (explanationLookup.get(concept) ?? `${concept} is a core idea to review.`).slice(0, 220),
   }));
 }
 
-function buildOptions(correct: string, distractors: string[]) {
-  const options = unique([correct, ...shuffle(distractors)]).slice(0, 4);
+function buildOptions(
+  correct: string,
+  distractors: string[],
+  random: () => number,
+) {
+  const options = unique([correct, ...shuffle(distractors, random)]).slice(0, 4);
 
   while (options.length < 4) {
     options.push(`It is a supporting point that is less central than the main concept.`);
   }
 
-  return shuffle(options.slice(0, 4));
+  return shuffle(options.slice(0, 4), random);
 }
 
 function buildQuizFromConcepts(
@@ -193,6 +313,7 @@ function buildQuizFromConcepts(
   topic: string,
   difficultyResolver: (concept: string, index: number) => Difficulty,
   prefix: string,
+  random: () => number,
 ) {
   return concepts.slice(0, 6).map((concept, index) => {
     const correct = explanationLookup.get(concept) ?? `${concept} is a core idea in ${topic}.`;
@@ -208,7 +329,7 @@ function buildQuizFromConcepts(
       `It is not mentioned in the notes for ${topic}.`,
       `It only matters after the revision sprint is complete.`,
       `It is a minor detail that can be skipped safely.`,
-    ]);
+    ], random);
 
     return {
       id: `${prefix}-${slugify(concept)}-${index + 1}`,
@@ -227,22 +348,42 @@ function buildStudyPlan(
   checklist: string[],
   examDate?: string | null,
   availableHoursPerWeek?: number | null,
+  learningStyle?: LearningStyle | null,
+  weakTopics: string[] = [],
 ) {
   const countdown = daysUntil(examDate);
   const sessionCount = countdown
     ? clamp(countdown <= 7 ? 4 : Math.ceil(countdown / 4), 4, 6)
     : 4;
+  const styleLabel = getStyleLabel(learningStyle);
   const sessionDuration = clamp(
     Math.round((((availableHoursPerWeek ?? 6) * 60) / sessionCount) / 5) * 5,
     40,
     90,
   );
+  const prioritizedConcepts = unique([...weakTopics, ...concepts]).filter(Boolean);
 
   return Array.from({ length: sessionCount }, (_, index) => {
     const focusConcepts = [
-      concepts[index % concepts.length],
-      concepts[(index + 1) % concepts.length],
+      prioritizedConcepts[index % prioritizedConcepts.length],
+      prioritizedConcepts[(index + 1) % prioritizedConcepts.length],
     ].filter(Boolean);
+    const styleSpecificTask =
+      styleLabel === "visual"
+        ? `Sketch a quick flowchart or diagram for ${focusConcepts[0]}.`
+        : styleLabel === "practice-first"
+          ? `Do a closed-book recall drill on ${focusConcepts[0]}.`
+          : styleLabel === "step-by-step"
+            ? `Write the steps of ${focusConcepts[0]} in the correct order.`
+            : `Answer 5 quick questions on ${focusConcepts[0]}.`;
+    const teachingTask =
+      styleLabel === "visual"
+        ? `Annotate how ${focusConcepts[1] ?? focusConcepts[0]} connects to the big picture.`
+        : styleLabel === "practice-first"
+          ? `Finish with one exam-style mini question on ${focusConcepts[1] ?? focusConcepts[0]}.`
+          : styleLabel === "step-by-step"
+            ? `Teach ${focusConcepts[1] ?? focusConcepts[0]} aloud in sequence for 2 minutes.`
+            : `Teach ${focusConcepts[1] ?? focusConcepts[0]} aloud for 2 minutes.`;
 
     return {
       id: `plan-${index + 1}`,
@@ -256,10 +397,10 @@ function buildStudyPlan(
           : `Lock in ${focusConcepts.join(" + ")}.`,
       tasks: [
         checklist[index % checklist.length],
-        `Answer 5 quick questions on ${focusConcepts[0]}.`,
+        styleSpecificTask,
         index === sessionCount - 1
           ? "Run a timed recap and review every mistake."
-          : `Teach ${focusConcepts[1] ?? focusConcepts[0]} aloud for 2 minutes.`,
+          : teachingTask,
       ],
     } satisfies RevisionSession;
   });
@@ -269,16 +410,51 @@ function buildWeakDrills(
   concepts: string[],
   explanationLookup: Map<string, string>,
   topic: string,
+  learningStyle?: LearningStyle | null,
 ) {
+  const styleLabel = getStyleLabel(learningStyle);
+
   return concepts.slice(0, 4).map((concept, index) => ({
     id: `drill-${slugify(concept)}-${index + 1}`,
     concept,
     question: `Explain ${concept} in 2-3 sentences and connect it back to ${topic}.`,
     answer:
       explanationLookup.get(concept) ?? `${concept} should be explained using the original notes.`,
-    hint: `Start with a definition of ${concept}, then explain why it matters.`,
+    hint:
+      styleLabel === "visual"
+        ? `Start with the biggest visual cue for ${concept}, then explain why it matters.`
+        : styleLabel === "practice-first"
+          ? `Give the exam answer first, then support it with one note-based reason.`
+          : styleLabel === "step-by-step"
+            ? `Start at step 1, then explain how the sequence moves forward.`
+            : `Start with a definition of ${concept}, then explain why it matters.`,
     difficulty: index === 0 ? "medium" : "hard",
   })) satisfies WeakDrill[];
+}
+
+export function findEvidenceForConcept(notes: string, concept: string) {
+  const sentences = splitSentences(notes);
+  const lowered = concept.toLowerCase();
+
+  return (
+    sentences.find((entry) => entry.toLowerCase().includes(lowered)) ??
+    sentences.find((entry) =>
+      lowered
+        .split(/\s+/)
+        .some((token) => token.length > 4 && entry.toLowerCase().includes(token)),
+    ) ??
+    sentences[0] ??
+    ""
+  );
+}
+
+export function extractGroundingSnippets(notes: string, concepts: string[], limit = 3) {
+  return unique(
+    concepts
+      .map((concept) => findEvidenceForConcept(notes, concept))
+      .filter(Boolean)
+      .map((entry) => entry.slice(0, 220)),
+  ).slice(0, limit);
 }
 
 export function createEmptyProgress(): ProgressState {
@@ -384,11 +560,38 @@ export function buildAdaptivePracticeQuestions(
       return index < 2 ? "medium" : "hard";
     },
     "practice",
+    createSeededRandom(`${pack.id}-${focus.join("|")}-practice-${requestedCount}`),
   ).slice(0, requestedCount);
+}
+
+export function adaptStudyPlanForProgress(pack: StudyPack, progress: ProgressState) {
+  const weakTopics = deriveWeakTopics(pack, progress);
+
+  if (!weakTopics.length) return pack.studyPlan;
+
+  return pack.studyPlan.map((session, index) => {
+    const priorityConcept = weakTopics[index % weakTopics.length];
+    const focusConcepts = unique([priorityConcept, ...session.focusConcepts]).slice(0, 3);
+    const tasks = unique([
+      `Priority review: self-test ${priorityConcept} before reopening your notes.`,
+      ...session.tasks,
+    ]).slice(0, 4);
+    const objective = session.objective.toLowerCase().includes(priorityConcept.toLowerCase())
+      ? session.objective
+      : `Prioritize ${priorityConcept} first. ${session.objective}`;
+
+    return {
+      ...session,
+      focusConcepts,
+      tasks,
+      objective,
+    };
+  });
 }
 
 export function buildFallbackStudyPack(input: StudyGenerationInput): StudyPack {
   const notes = normalizeWhitespace(input.notes);
+  const conceptHints = buildConceptHints(input);
   const prioritizedWeakTopics = unique(
     (input.weakTopics ?? [])
       .map((entry) => toTitleCase(entry.trim()))
@@ -396,26 +599,44 @@ export function buildFallbackStudyPack(input: StudyGenerationInput): StudyPack {
   ).slice(0, 4);
   const keyConcepts = unique([
     ...prioritizedWeakTopics,
-    ...extractConcepts(input.subject, input.topic, notes),
+    ...conceptHints,
+    ...extractConcepts(input.subject, input.topic, notes, conceptHints),
   ]).slice(0, 6);
+  const seededRandom = createSeededRandom(
+    `${input.subject}|${input.topic}|${input.learningStyle ?? "mixed"}|${notes.slice(0, 400)}`,
+  );
   const explanationLookup = buildExplanationLookup(keyConcepts, notes, input.topic);
-  const summary = buildSummary(keyConcepts, explanationLookup, notes, input.topic);
-  const checklist = buildChecklist(keyConcepts);
-  const flashcards = buildFlashcards(keyConcepts, explanationLookup);
+  const summary = buildSummary(
+    keyConcepts,
+    explanationLookup,
+    notes,
+    input.topic,
+    input.learningStyle,
+  );
+  const checklist = buildChecklist(keyConcepts, input.learningStyle);
+  const flashcards = buildFlashcards(keyConcepts, explanationLookup, input.learningStyle);
   const quiz = buildQuizFromConcepts(
     keyConcepts,
     explanationLookup,
     input.topic,
     (_, index) => (index < 2 ? "easy" : index < 4 ? "medium" : "hard"),
     "quiz",
+    seededRandom,
   );
   const studyPlan = buildStudyPlan(
     keyConcepts,
     checklist,
     input.examDate,
     input.availableHoursPerWeek,
+    input.learningStyle,
+    prioritizedWeakTopics,
   );
-  const weakDrills = buildWeakDrills(keyConcepts, explanationLookup, input.topic);
+  const weakDrills = buildWeakDrills(
+    keyConcepts,
+    explanationLookup,
+    input.topic,
+    input.learningStyle,
+  );
 
   return {
     id: `pack-${slugify(`${input.subject}-${input.topic}`)}`,

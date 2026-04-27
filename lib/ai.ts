@@ -4,6 +4,7 @@ import { clamp, normalizeWhitespace, slugify, unique } from "@/lib/utils";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
+const NVIDIA_TIMEOUT_MS = 8_000;
 
 function getBaseUrl() {
   return (process.env.NVIDIA_NIM_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
@@ -30,7 +31,10 @@ function extractJsonObject(text: string) {
 }
 
 function summarizeError(error: unknown) {
-  if (error instanceof Error) return error.message.slice(0, 180);
+  if (error instanceof Error) {
+    if (error.name === "AbortError") return "AI generation timed out. StudyPilot switched to demo mode.";
+    return error.message.slice(0, 180);
+  }
   return "AI generation failed. Demo fallback used.";
 }
 
@@ -56,42 +60,72 @@ async function callNvidia(
   messages: Array<{ role: "system" | "user"; content: string }>,
   maxTokens: number,
 ) {
-  const response = await fetch(`${getBaseUrl()}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-    body: JSON.stringify({
-      model: getModel(),
-      temperature: 0.25,
-      max_tokens: maxTokens,
-      stream: false,
-      messages,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NVIDIA_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${getBaseUrl()}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: getModel(),
+        temperature: 0,
+        max_tokens: maxTokens,
+        stream: false,
+        messages,
+      }),
+    });
 
-  const text = await response.text();
+    const text = await response.text();
 
-  if (!response.ok) {
-    throw new Error(`NVIDIA NIM ${response.status}: ${text.slice(0, 220)}`);
+    if (!response.ok) {
+      throw new Error(`NVIDIA NIM ${response.status}: ${text.slice(0, 220)}`);
+    }
+
+    const data = JSON.parse(text) as {
+      choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
+    };
+    const content = data.choices?.[0]?.message?.content;
+
+    if (Array.isArray(content)) {
+      return content.map((part) => part.text ?? "").join("");
+    }
+
+    if (typeof content !== "string") {
+      throw new Error("NVIDIA NIM returned an empty completion.");
+    }
+
+    return content;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function mergeWithFallback<T extends { id: string }>(
+  primary: T[],
+  fallback: T[],
+  minimum: number,
+  maximum: number,
+) {
+  const merged = [...primary];
+  const ids = new Set(primary.map((item) => item.id));
+
+  for (const item of fallback) {
+    if (merged.length >= maximum) break;
+    if (ids.has(item.id)) continue;
+    merged.push(item);
+    ids.add(item.id);
   }
 
-  const data = JSON.parse(text) as {
-    choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
-  };
-  const content = data.choices?.[0]?.message?.content;
-
-  if (Array.isArray(content)) {
-    return content.map((part) => part.text ?? "").join("");
+  if (merged.length < minimum) {
+    return fallback.slice(0, maximum);
   }
 
-  if (typeof content !== "string") {
-    throw new Error("NVIDIA NIM returned an empty completion.");
-  }
-
-  return content;
+  return merged.slice(0, maximum);
 }
 
 function normalizeConcepts(raw: unknown, fallback: string[]) {
@@ -147,7 +181,7 @@ function normalizeFlashcards(raw: unknown, keyConcepts: string[], fallback: Flas
     })
     .filter((entry): entry is Flashcard => Boolean(entry));
 
-  return cards.length ? cards.slice(0, 6) : fallback;
+  return mergeWithFallback(cards, fallback, 5, 6);
 }
 
 function normalizeQuizCollection(
@@ -191,7 +225,7 @@ function normalizeQuizCollection(
     })
     .filter((entry): entry is QuizQuestion => Boolean(entry));
 
-  return questions.length ? questions.slice(0, 6) : fallback;
+  return mergeWithFallback(questions, fallback, 5, 6);
 }
 
 function normalizeStudyPlan(
@@ -221,7 +255,7 @@ function normalizeStudyPlan(
       })
       .filter((entry): entry is RevisionSession => Boolean(entry));
 
-    if (sessions.length) return sessions.slice(0, 6);
+    if (sessions.length) return mergeWithFallback(sessions, fallback, 4, 6);
   }
 
   if (isRecord(raw) && Array.isArray(raw.weeks)) {
@@ -243,7 +277,7 @@ function normalizeStudyPlan(
       })
       .filter((entry): entry is RevisionSession => Boolean(entry));
 
-    if (weeks.length) return weeks.slice(0, 6);
+    if (weeks.length) return mergeWithFallback(weeks, fallback, 4, 6);
   }
 
   return fallback;
@@ -277,7 +311,7 @@ function normalizeWeakDrills(raw: unknown, keyConcepts: string[], fallback: Weak
     })
     .filter((entry): entry is WeakDrill => Boolean(entry));
 
-  return drills.length ? drills.slice(0, 4) : fallback;
+  return mergeWithFallback(drills, fallback, 4, 4);
 }
 
 export async function generateStudyPack(input: StudyGenerationInput): Promise<StudyPack> {
@@ -300,6 +334,17 @@ export async function generateStudyPack(input: StudyGenerationInput): Promise<St
     role: "user" as const,
     content: `Create a grounded study pack from the source notes below. Use only facts supported by the notes. If the notes are thin, keep explanations generic rather than inventing details. Return JSON only with this shape: { keyConcepts, summary: { short, bullets, misconceptions }, checklist, flashcards, quiz, studyPlan, weakDrills }.
 
+Requirements:
+- keyConcepts: 5 to 6 items
+- checklist: 5 to 6 items
+- flashcards: 5 to 6 items
+- quiz: 5 to 6 multiple-choice questions
+- studyPlan: 4 to 6 sessions
+- weakDrills: exactly 4 drills
+- Make the learning style visibly affect checklist wording and study-plan tasks.
+- Keep every task short, concrete, and realistic for a student under time pressure.
+- If the notes do not support a fact, stay generic instead of inventing details.
+
 Subject: ${input.subject}
 Topic: ${input.topic}
 Exam date: ${input.examDate ?? "not provided"}
@@ -318,7 +363,7 @@ Source notes:\n${input.notes.slice(0, 9000)}`,
         {
           role: "system",
           content:
-            "You are a precise study assistant. Return valid JSON only. Keep every output useful for a student revising under time pressure.",
+            "You are a precise study assistant. Return valid JSON only. Keep every output useful for a student revising under time pressure. Do not fabricate unsupported facts.",
         },
         prompt,
       ],
@@ -376,11 +421,11 @@ export async function generateAdaptivePractice(
         {
           role: "system",
           content:
-            "You generate grounded multiple-choice revision drills. Return valid JSON only in the shape { questions: [...] }.",
+            "You generate grounded multiple-choice revision drills. Return valid JSON only in the shape { questions: [...] }. Do not fabricate unsupported facts.",
         },
         {
           role: "user",
-          content: `Create ${requestedCount} weak-area quiz questions for this student. Focus on these weak topics first: ${weakTopics.join(", ") || "use the most difficult concepts"}. Only use facts from the notes. Keep questions short, practical, and exam-style.
+          content: `Create exactly ${requestedCount} weak-area quiz questions for this student. Focus on these weak topics first: ${weakTopics.join(", ") || "use the most difficult concepts"}. Only use facts from the notes. Keep questions short, practical, and exam-style.
 
 Topic: ${pack.topic}
 Key concepts: ${pack.keyConcepts.join(", ")}

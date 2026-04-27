@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { BarChart3, BookOpen, CalendarDays, CheckCircle2, Target } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { deriveWeakTopics, getChecklistProgress, getFlashcardProgress, getQuizAccuracy } from "@/lib/study-engine";
+import {
+  adaptStudyPlanForProgress,
+  deriveWeakTopics,
+  extractGroundingSnippets,
+  getChecklistProgress,
+  getFlashcardProgress,
+  getQuizAccuracy,
+} from "@/lib/study-engine";
 import { resetStudyState, setTopicRating, toggleChecklistItem, useStudyStore } from "@/lib/store";
 import { daysUntil, formatLongDate } from "@/lib/utils";
 
@@ -40,6 +47,8 @@ export function DashboardScreen() {
   const flashcardProgress = getFlashcardProgress(currentPack, progress);
   const quizAccuracy = getQuizAccuracy(progress);
   const daysLeft = daysUntil(currentPack.examDate);
+  const adaptedPlan = adaptStudyPlanForProgress(currentPack, progress);
+  const groundingSnippets = extractGroundingSnippets(currentPack.inputText, currentPack.keyConcepts, 3);
 
   return (
     <AppShell
@@ -108,6 +117,15 @@ export function DashboardScreen() {
                 ))}
               </ul>
             </div>
+          </div>
+
+          <div className="mt-6 subtle-card p-5">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-300">Grounded in your notes</h3>
+            <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
+              {groundingSnippets.map((snippet) => (
+                <li key={snippet}>“{snippet}”</li>
+              ))}
+            </ul>
           </div>
 
           <div className="mt-6">
@@ -190,7 +208,7 @@ export function DashboardScreen() {
             )}
 
             <div className="mt-6 grid gap-3">
-              {currentPack.studyPlan.slice(0, 2).map((session) => (
+              {adaptedPlan.slice(0, 2).map((session) => (
                 <div key={session.id} className="subtle-card p-4">
                   <p className="text-sm font-semibold text-white">{session.dayLabel}: {session.title}</p>
                   <p className="mt-2 text-sm leading-6 text-slate-300">{session.objective}</p>

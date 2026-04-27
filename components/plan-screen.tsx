@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { BarChart3, CalendarDays, Target, Zap } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { deriveWeakTopics, getChecklistProgress, getQuizAccuracy } from "@/lib/study-engine";
+import {
+  adaptStudyPlanForProgress,
+  deriveWeakTopics,
+  getChecklistProgress,
+  getQuizAccuracy,
+} from "@/lib/study-engine";
 import { useStudyStore } from "@/lib/store";
 import { daysUntil, formatLongDate } from "@/lib/utils";
 
@@ -35,12 +40,13 @@ export function PlanScreen() {
   const nextTask = currentPack.checklist.find((item) => !progress.completedChecklist.includes(item));
   const examCountdown = daysUntil(currentPack.examDate);
   const lastMinuteFocus = [...new Set([...(currentPack.weakTopicsInput ?? []), ...weakTopics, ...currentPack.keyConcepts])].slice(0, 3);
+  const adaptedPlan = adaptStudyPlanForProgress(currentPack, progress);
 
   return (
     <AppShell
       eyebrow="Study plan"
       title="A personalized revision timetable that adapts to exam pressure"
-      description="StudyPilot spreads the highest-value concepts across short sessions, then adds a last-minute rescue mode for the final revision push."
+      description="StudyPilot spreads the highest-value concepts across short sessions, then re-prioritizes the focus when you mark topics hard or miss quiz questions."
       actions={
         <Link href="/dashboard" className="rounded-2xl bg-sky-400 px-4 py-3 text-sm font-semibold text-slate-950">
           Back to dashboard
@@ -79,7 +85,7 @@ export function PlanScreen() {
         <section className="surface-card p-6 sm:p-7">
           <h2 className="text-xl font-semibold text-white">Personalized revision timetable</h2>
           <div className="mt-5 space-y-4">
-            {currentPack.studyPlan.map((session) => (
+            {adaptedPlan.map((session) => (
               <article key={session.id} className="subtle-card p-5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>

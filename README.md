@@ -24,7 +24,7 @@ StudyPilot AI is a polished, demo-first student web app built for **Genesis: The
    - quiz questions,
    - flashcards,
    - and a last-minute revision mode.
-4. The student tracks progress and the plan updates around weak areas.
+4. The student tracks progress and StudyPilot re-prioritizes weak areas in the revision flow.
 
 ## Tech stack
 
@@ -49,6 +49,7 @@ StudyPilot AI is a polished, demo-first student web app built for **Genesis: The
 - Demo presets let judges see the full workflow immediately.
 - The product works without a database.
 - If NVIDIA NIM is unavailable, the fallback engine still generates a strong study pack.
+- The dashboard and quiz surfaces now show small “grounded in your notes” evidence snippets for judge trust.
 - The whole experience is optimized for a short live walkthrough.
 
 ## Submission / pitch assets

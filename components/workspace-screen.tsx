@@ -88,9 +88,15 @@ export function WorkspaceScreen() {
       }
 
       const content = await file.text();
-      setNotes((current) => `${current.trim()}
+      const nextValue = `${notes.trim()}
 
-${content.trim()}`.trim());
+${content.trim()}`.trim();
+
+      if (nextValue.length > 12_000) {
+        throw new Error("Please keep the notes under 12,000 characters for a fast, reliable demo.");
+      }
+
+      setNotes(nextValue);
       setError(null);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Unable to read that file.");
@@ -105,6 +111,15 @@ ${content.trim()}`.trim());
     setError(null);
 
     try {
+      const sanitizedNotes = notes.trim();
+      if (sanitizedNotes.length < 24) {
+        throw new Error("Please paste at least 2-3 lines of notes so StudyPilot has enough context.");
+      }
+
+      if (sanitizedNotes.length > 12_000) {
+        throw new Error("Please keep the notes under 12,000 characters for a fast, reliable demo.");
+      }
+
       const weakTopics = weakTopicsText
         .split(/[\n,]/)
         .map((item) => item.trim())
@@ -119,7 +134,7 @@ ${content.trim()}`.trim());
         body: JSON.stringify({
           subject,
           topic,
-          notes,
+          notes: sanitizedNotes,
           examDate: examDate || null,
           availableHoursPerWeek: availableHours ? Number(availableHours) : null,
           weakTopics,

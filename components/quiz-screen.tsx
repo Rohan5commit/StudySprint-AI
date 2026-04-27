@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Brain, Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { findEvidenceForConcept } from "@/lib/study-engine";
 import { clearPracticeQuestions, recordQuizAttempt, setPracticeQuestions, useStudyStore } from "@/lib/store";
 import type { QuizAttempt, QuizQuestion } from "@/lib/types";
 
@@ -147,6 +148,7 @@ export function QuizScreen() {
       <div className="mt-6 space-y-4">
         {questions.map((question, index) => {
           const attempt = activeAttempts.get(question.id);
+          const sourceNote = findEvidenceForConcept(currentPack.inputText, question.concept);
           return (
             <article key={question.id} className="surface-card p-6 sm:p-7">
               <div className="flex flex-wrap items-center gap-3">
@@ -188,6 +190,11 @@ export function QuizScreen() {
                     {attempt.correct ? "Correct." : "Not quite."}
                   </p>
                   <p className="mt-2">{question.explanation}</p>
+                  {sourceNote ? (
+                    <p className="mt-3 text-xs leading-6 text-slate-400">
+                      Source note: “{sourceNote}”
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </article>
