@@ -15,6 +15,9 @@ function getDefaultState(): AppState {
   };
 }
 
+let currentState: AppState = getDefaultState();
+let hasHydratedFromStorage = false;
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -39,14 +42,23 @@ function safeParse(raw: string | null): AppState {
   }
 }
 
+function ensureHydratedFromStorage() {
+  if (typeof window === "undefined" || hasHydratedFromStorage) return;
+  currentState = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  hasHydratedFromStorage = true;
+}
+
 function readSnapshot(): AppState {
-  if (typeof window === "undefined") return getDefaultState();
-  return safeParse(window.localStorage.getItem(STORAGE_KEY));
+  ensureHydratedFromStorage();
+  return currentState;
 }
 
 function writeSnapshot(state: AppState) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  currentState = state;
+  if (typeof window !== "undefined") {
+    hasHydratedFromStorage = true;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
   emit();
 }
 
@@ -169,8 +181,8 @@ export function clearPracticeQuestions() {
 }
 
 export function hydrateProgress(progress: ProgressState) {
-  updateState((state) => ({
-    ...state,
+  writeSnapshot({
+    ...readSnapshot(),
     progress,
-  }));
+  });
 }
