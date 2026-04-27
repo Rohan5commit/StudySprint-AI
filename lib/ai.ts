@@ -4,7 +4,7 @@ import { clamp, normalizeWhitespace, slugify, unique } from "@/lib/utils";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
-const NVIDIA_TIMEOUT_MS = 8_000;
+const NVIDIA_TIMEOUT_MS = 10_000;
 
 function getBaseUrl() {
   return (process.env.NVIDIA_NIM_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
