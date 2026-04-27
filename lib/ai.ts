@@ -1,59 +1,6 @@
-import { z } from "zod";
 import { buildAdaptivePracticeQuestions, buildFallbackStudyPack, deriveWeakTopics } from "@/lib/study-engine";
-import type { ProgressState, QuizQuestion, StudyGenerationInput, StudyPack } from "@/lib/types";
-import { normalizeWhitespace, slugify, unique } from "@/lib/utils";
-
-const difficultySchema = z.enum(["easy", "medium", "hard"]);
-
-const aiFlashcardSchema = z.object({
-  concept: z.string().min(2).max(80),
-  front: z.string().min(6).max(180),
-  back: z.string().min(12).max(240),
-});
-
-const aiQuizSchema = z.object({
-  concept: z.string().min(2).max(80),
-  question: z.string().min(12).max(240),
-  options: z.array(z.string().min(2).max(220)).min(4).max(4),
-  correctAnswer: z.string().min(2).max(220),
-  explanation: z.string().min(12).max(240),
-  difficulty: difficultySchema,
-});
-
-const aiPlanSchema = z.object({
-  dayLabel: z.string().min(2).max(40),
-  title: z.string().min(4).max(80),
-  focusConcepts: z.array(z.string().min(2).max(80)).min(1).max(3),
-  durationMinutes: z.number().int().min(20).max(120),
-  objective: z.string().min(10).max(180),
-  tasks: z.array(z.string().min(6).max(180)).min(2).max(4),
-});
-
-const aiDrillSchema = z.object({
-  concept: z.string().min(2).max(80),
-  question: z.string().min(12).max(240),
-  answer: z.string().min(12).max(240),
-  hint: z.string().min(6).max(180),
-  difficulty: difficultySchema,
-});
-
-const aiStudyPackSchema = z.object({
-  keyConcepts: z.array(z.string().min(2).max(80)).min(4).max(8),
-  summary: z.object({
-    short: z.string().min(40).max(480),
-    bullets: z.array(z.string().min(10).max(180)).min(3).max(5),
-    misconceptions: z.array(z.string().min(10).max(180)).min(2).max(4),
-  }),
-  checklist: z.array(z.string().min(10).max(180)).min(4).max(8),
-  flashcards: z.array(aiFlashcardSchema).min(4).max(8),
-  quiz: z.array(aiQuizSchema).min(5).max(8),
-  studyPlan: z.array(aiPlanSchema).min(4).max(6),
-  weakDrills: z.array(aiDrillSchema).min(3).max(6),
-});
-
-const aiPracticeSchema = z.object({
-  questions: z.array(aiQuizSchema).min(3).max(8),
-});
+import type { Difficulty, Flashcard, ProgressState, QuizQuestion, RevisionSession, StudyGenerationInput, StudyPack, WeakDrill } from "@/lib/types";
+import { clamp, normalizeWhitespace, slugify, unique } from "@/lib/utils";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_MODEL = "openai/gpt-oss-20b";
@@ -79,12 +26,29 @@ function extractJsonObject(text: string) {
     throw new Error("Model did not return a JSON object.");
   }
 
-  return JSON.parse(cleaned.slice(start, end + 1));
+  return JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>;
 }
 
 function summarizeError(error: unknown) {
   if (error instanceof Error) return error.message.slice(0, 180);
   return "AI generation failed. Demo fallback used.";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? normalizeWhitespace(value) : "";
+}
+
+function asStringArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => asString(entry)).filter(Boolean);
+}
+
+function asDifficulty(value: unknown, fallback: Difficulty): Difficulty {
+  return value === "easy" || value === "medium" || value === "hard" ? value : fallback;
 }
 
 async function callNvidia(
@@ -130,26 +94,190 @@ async function callNvidia(
   return content;
 }
 
-function normalizeQuizQuestion(question: QuizQuestion, index: number, prefix: string) {
-  const options = unique([
-    question.correctAnswer,
-    ...question.options.map((option) => normalizeWhitespace(option)),
-  ]).slice(0, 4);
+function normalizeConcepts(raw: unknown, fallback: string[]) {
+  const concepts = asStringArray(raw);
+  if (!concepts.length) return fallback;
+  return unique(concepts).slice(0, 6);
+}
 
-  while (options.length < 4) {
-    options.push("Review the original notes and connect the concept back to the topic.");
-  }
+function normalizeSummary(raw: unknown, fallback: StudyPack["summary"], keyConcepts: string[]) {
+  if (!isRecord(raw)) return fallback;
 
   return {
-    ...question,
-    id: `${prefix}-${slugify(question.concept)}-${index + 1}`,
-    question: normalizeWhitespace(question.question).slice(0, 220),
-    options,
-    correctAnswer: options.includes(question.correctAnswer)
-      ? normalizeWhitespace(question.correctAnswer)
-      : options[0],
-    explanation: normalizeWhitespace(question.explanation).slice(0, 220),
-  } satisfies QuizQuestion;
+    short: asString(raw.short) || fallback.short,
+    bullets:
+      asStringArray(raw.bullets).slice(0, 4).length > 0
+        ? asStringArray(raw.bullets).slice(0, 4)
+        : fallback.bullets,
+    misconceptions:
+      asStringArray(raw.misconceptions).slice(0, 3).length > 0
+        ? asStringArray(raw.misconceptions).slice(0, 3)
+        : [
+            fallback.misconceptions[0],
+            `Avoid mixing up ${keyConcepts[0]} and ${keyConcepts[1] ?? keyConcepts[0]}.`,
+          ].filter(Boolean),
+  };
+}
+
+function normalizeFlashcards(raw: unknown, keyConcepts: string[], fallback: Flashcard[]) {
+  if (!Array.isArray(raw)) return fallback;
+
+  const cards = raw
+    .map((entry, index) => {
+      if (!isRecord(entry)) return null;
+      const concept =
+        asString(entry.concept) || keyConcepts[index] || fallback[index]?.concept || `Concept ${index + 1}`;
+      const front =
+        asString(entry.front) ||
+        asString(entry.question) ||
+        fallback[index]?.front ||
+        `What should you remember about ${concept}?`;
+      const back =
+        asString(entry.back) ||
+        asString(entry.answer) ||
+        fallback[index]?.back ||
+        `${concept} is a core idea from the study notes.`;
+
+      return {
+        id: `flashcard-${slugify(concept)}-${index + 1}`,
+        concept,
+        front,
+        back,
+      } satisfies Flashcard;
+    })
+    .filter((entry): entry is Flashcard => Boolean(entry));
+
+  return cards.length ? cards.slice(0, 6) : fallback;
+}
+
+function normalizeQuizCollection(
+  raw: unknown,
+  keyConcepts: string[],
+  fallback: QuizQuestion[],
+  prefix: string,
+) {
+  if (!Array.isArray(raw)) return fallback;
+
+  const questions = raw
+    .map((entry, index) => {
+      if (!isRecord(entry)) return null;
+      const fallbackQuestion = fallback[index] ?? fallback[0];
+      const concept =
+        asString(entry.concept) || keyConcepts[index] || fallbackQuestion?.concept || `Concept ${index + 1}`;
+      const question = asString(entry.question) || fallbackQuestion?.question || `What matters about ${concept}?`;
+      const correctAnswer =
+        asString(entry.correctAnswer) || asString(entry.answer) || fallbackQuestion?.correctAnswer || "Use the notes to answer.";
+      const options = unique([
+        correctAnswer,
+        ...asStringArray(entry.options),
+        ...(fallbackQuestion?.options ?? []),
+      ]).slice(0, 4);
+
+      while (options.length < 4) {
+        options.push("Review the original notes and connect the concept back to the topic.");
+      }
+
+      return {
+        id: `${prefix}-${slugify(concept)}-${index + 1}`,
+        concept,
+        question,
+        options,
+        correctAnswer,
+        explanation:
+          asString(entry.explanation) ||
+          `Use the notes to justify why “${correctAnswer}” is correct for ${concept}.`,
+        difficulty: asDifficulty(entry.difficulty, fallbackQuestion?.difficulty ?? (index < 2 ? "easy" : "medium")),
+      } satisfies QuizQuestion;
+    })
+    .filter((entry): entry is QuizQuestion => Boolean(entry));
+
+  return questions.length ? questions.slice(0, 6) : fallback;
+}
+
+function normalizeStudyPlan(
+  raw: unknown,
+  keyConcepts: string[],
+  fallback: RevisionSession[],
+) {
+  if (Array.isArray(raw)) {
+    const sessions = raw
+      .map((entry, index) => {
+        if (!isRecord(entry)) return null;
+        return {
+          id: `plan-${index + 1}`,
+          dayLabel: asString(entry.dayLabel) || fallback[index]?.dayLabel || `Session ${index + 1}`,
+          title: asString(entry.title) || fallback[index]?.title || `Revision sprint ${index + 1}`,
+          focusConcepts: asStringArray(entry.focusConcepts).slice(0, 3).length
+            ? asStringArray(entry.focusConcepts).slice(0, 3)
+            : fallback[index]?.focusConcepts ?? keyConcepts.slice(index, index + 2),
+          durationMinutes: typeof entry.durationMinutes === "number"
+            ? entry.durationMinutes
+            : fallback[index]?.durationMinutes ?? 60,
+          objective: asString(entry.objective) || fallback[index]?.objective || `Review ${keyConcepts[index] ?? keyConcepts[0]}.`,
+          tasks: asStringArray(entry.tasks).slice(0, 4).length
+            ? asStringArray(entry.tasks).slice(0, 4)
+            : fallback[index]?.tasks ?? [`Review ${keyConcepts[index] ?? keyConcepts[0]}.`],
+        } satisfies RevisionSession;
+      })
+      .filter((entry): entry is RevisionSession => Boolean(entry));
+
+    if (sessions.length) return sessions.slice(0, 6);
+  }
+
+  if (isRecord(raw) && Array.isArray(raw.weeks)) {
+    const weeks = raw.weeks
+      .map((entry, index) => {
+        if (!isRecord(entry)) return null;
+        const weekNumber = typeof entry.week === "number" ? entry.week : index + 1;
+        const hours = typeof entry.hours === "number" ? entry.hours : 2;
+        const activities = asStringArray(entry.activities).slice(0, 4);
+        return {
+          id: `plan-${index + 1}`,
+          dayLabel: `Week ${weekNumber}`,
+          title: `Week ${weekNumber} sprint`,
+          focusConcepts: fallback[index]?.focusConcepts ?? keyConcepts.slice(index, index + 2),
+          durationMinutes: clamp(Math.round((hours * 60) / Math.max(activities.length, 1)), 45, 90),
+          objective: activities[0] || fallback[index]?.objective || `Review ${keyConcepts[index] ?? keyConcepts[0]}.`,
+          tasks: activities.length ? activities : fallback[index]?.tasks ?? [`Review ${keyConcepts[index] ?? keyConcepts[0]}.`],
+        } satisfies RevisionSession;
+      })
+      .filter((entry): entry is RevisionSession => Boolean(entry));
+
+    if (weeks.length) return weeks.slice(0, 6);
+  }
+
+  return fallback;
+}
+
+function normalizeWeakDrills(raw: unknown, keyConcepts: string[], fallback: WeakDrill[]) {
+  if (!Array.isArray(raw)) return fallback;
+
+  const drills = raw
+    .map((entry, index) => {
+      if (!isRecord(entry)) return null;
+      const concept =
+        asString(entry.concept) || keyConcepts[index] || fallback[index]?.concept || `Concept ${index + 1}`;
+      return {
+        id: `drill-${slugify(concept)}-${index + 1}`,
+        concept,
+        question:
+          asString(entry.question) ||
+          asString(entry.exercise) ||
+          fallback[index]?.question ||
+          `Explain ${concept} using the study notes.`,
+        answer:
+          asString(entry.answer) ||
+          fallback[index]?.answer ||
+          `Use the source notes to explain ${concept}.`,
+        hint:
+          asString(entry.hint) ||
+          `Start by defining ${concept}, then connect it to the wider topic.`,
+        difficulty: asDifficulty(entry.difficulty, fallback[index]?.difficulty ?? "medium"),
+      } satisfies WeakDrill;
+    })
+    .filter((entry): entry is WeakDrill => Boolean(entry));
+
+  return drills.length ? drills.slice(0, 4) : fallback;
 }
 
 export async function generateStudyPack(input: StudyGenerationInput): Promise<StudyPack> {
@@ -195,59 +323,22 @@ Source notes:\n${input.notes.slice(0, 9000)}`,
       2200,
     );
 
-    const parsed = aiStudyPackSchema.parse(extractJsonObject(content));
+    const parsed = extractJsonObject(content);
+    const keyConcepts = normalizeConcepts(parsed.keyConcepts, fallback.keyConcepts);
 
     return {
       ...fallback,
       provider: "nvidia-nim",
       fallbackReason: undefined,
-      keyConcepts: unique(parsed.keyConcepts).slice(0, 6),
-      summary: {
-        short: normalizeWhitespace(parsed.summary.short).slice(0, 420),
-        bullets: parsed.summary.bullets.slice(0, 4).map((item) => normalizeWhitespace(item)),
-        misconceptions: parsed.summary.misconceptions
-          .slice(0, 3)
-          .map((item) => normalizeWhitespace(item)),
-      },
-      checklist: parsed.checklist.slice(0, 6).map((item) => normalizeWhitespace(item)),
-      flashcards: parsed.flashcards.slice(0, 6).map((card, index) => ({
-        id: `flashcard-${slugify(card.concept)}-${index + 1}`,
-        concept: normalizeWhitespace(card.concept),
-        front: normalizeWhitespace(card.front),
-        back: normalizeWhitespace(card.back),
-      })),
-      quiz: parsed.quiz.slice(0, 6).map((question, index) =>
-        normalizeQuizQuestion(
-          {
-            id: question.concept,
-            concept: normalizeWhitespace(question.concept),
-            question: question.question,
-            options: question.options,
-            correctAnswer: question.correctAnswer,
-            explanation: question.explanation,
-            difficulty: question.difficulty,
-          },
-          index,
-          "quiz",
-        ),
-      ),
-      studyPlan: parsed.studyPlan.slice(0, 6).map((session, index) => ({
-        id: `plan-${index + 1}`,
-        dayLabel: normalizeWhitespace(session.dayLabel),
-        title: normalizeWhitespace(session.title),
-        focusConcepts: session.focusConcepts.map((concept) => normalizeWhitespace(concept)).slice(0, 3),
-        durationMinutes: session.durationMinutes,
-        objective: normalizeWhitespace(session.objective),
-        tasks: session.tasks.map((task) => normalizeWhitespace(task)).slice(0, 4),
-      })),
-      weakDrills: parsed.weakDrills.slice(0, 4).map((drill, index) => ({
-        id: `drill-${slugify(drill.concept)}-${index + 1}`,
-        concept: normalizeWhitespace(drill.concept),
-        question: normalizeWhitespace(drill.question),
-        answer: normalizeWhitespace(drill.answer),
-        hint: normalizeWhitespace(drill.hint),
-        difficulty: drill.difficulty,
-      })),
+      keyConcepts,
+      summary: normalizeSummary(parsed.summary, fallback.summary, keyConcepts),
+      checklist: asStringArray(parsed.checklist).slice(0, 6).length
+        ? asStringArray(parsed.checklist).slice(0, 6)
+        : fallback.checklist,
+      flashcards: normalizeFlashcards(parsed.flashcards, keyConcepts, fallback.flashcards),
+      quiz: normalizeQuizCollection(parsed.quiz, keyConcepts, fallback.quiz, "quiz"),
+      studyPlan: normalizeStudyPlan(parsed.studyPlan, keyConcepts, fallback.studyPlan),
+      weakDrills: normalizeWeakDrills(parsed.weakDrills, keyConcepts, fallback.weakDrills),
     };
   } catch (error) {
     return {
@@ -297,25 +388,12 @@ Source notes:\n${pack.inputText.slice(0, 9000)}`,
       1400,
     );
 
-    const parsed = aiPracticeSchema.parse(extractJsonObject(content));
+    const parsed = extractJsonObject(content);
+    const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : parsed.quiz;
 
     return {
       provider: "nvidia-nim",
-      questions: parsed.questions.slice(0, requestedCount).map((question, index) =>
-        normalizeQuizQuestion(
-          {
-            id: question.concept,
-            concept: normalizeWhitespace(question.concept),
-            question: question.question,
-            options: question.options,
-            correctAnswer: question.correctAnswer,
-            explanation: question.explanation,
-            difficulty: question.difficulty,
-          },
-          index,
-          "practice",
-        ),
-      ),
+      questions: normalizeQuizCollection(rawQuestions, pack.keyConcepts, fallbackQuestions, "practice").slice(0, requestedCount),
     };
   } catch (error) {
     return {
